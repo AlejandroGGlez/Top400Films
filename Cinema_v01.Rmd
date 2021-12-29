@@ -1,0 +1,244 @@
+---
+title: "Cinema"
+author: "Alejandro Gutiérrez-González"
+date: "28/12/2021"
+output: html_document
+---
+# Top 4000 films of all times: An analysis
+
+The dataset used was collected by *Axel Torbenson* from *The Numbers* web page. It is a compendium of the top 4000 movies ranked by production budget and contains information about the release date, domestic gross revenue, worldwide revenue and production budged. It is measured in United State Dollars (USD) and it is not adjusted to the inflation rate.
+
+
+**Source: **[Top 4000 Movies Dataset](https://www.kaggle.com/axeltorbenson/top-4000-movies)
+
+## What makes a film profitable?
+
+### Evolution over time of the **Return on Investment** in the Cinema Indutry
+
+Despite that our data set is not adjusted to the inflation rate we still can have access to valuable information, such as the evolution of the **Return on Investment** over time.
+
+In this case we are going to study it both domestically and worldwide.
+
+#### Why the Return on Investement is not dependet on the inflation rate
+
+The **Return on investment** or **ROI** is defined as the benefit obtained divided by the cost of the inversion or in our case as 
+
+* $ROI = (Gross Revenue - Production Budget)/Production Budget$
+
+In this case the ROI is independent of the inflation because both Numerator and Denominator are affected by it an therefore they cancel out: 
+
+* $ROI = (Gross Revenue·Inflation Rate - Production Budget·Inflation Rate)/(Production Budget·Inflation Rate)$
+
+We can extract common factor $InfaltionRate$ in the Numerator
+
+* $ROI = [(Gross Revenue - Production Budget·)·(Inflation Rate)]/[(Production Budget)·(Inflation Rate)]$
+
+As $InflationRate$ is in both Numerator and Denominator they cancel out and we got an formula that is not dependent on the $Inflation Rate$
+
+* $ROI = (Gross Revenue - Production Budget)/Production Budget$
+
+### Relationship between the release date and the benefits
+
+I will like to explore if there is any correlation between the releasing date of a film and its commercial success (eg. Release in Christmas' day)
+
+### Is there any relationship between the domectic revenue and the worldwide renevue
+
+The total revenue of a film is the sum of the revenue in every country that the film is presented in. 
+
+**Can we use the domestic gross revenue as a predictor for the world wide revenue?**
+
+## Prepare
+#### Setting up R
+
+Let's load the **tydiverse** package, the **skimr** package and the **lubridate** package
+
+```{r}
+library('tidyverse')
+library('skimr')
+library('lubridate')
+library('viridis')
+```
+
+#### Load the data
+
+Now we are going to load the 'top_4000_movies_data.csv' file
+
+```{r}
+movies <-read.csv('top_4000_movies_data.csv')
+```
+We are going to explore some features of our dataset
+
+```{r}
+str(movies)
+```
+In the case of the name of the columns we can observe that the Release.Date have some kind of typo at the beginning, so we are going to rename that column. 
+
+It seems also that the Release.Date column is assigned as **chr** rather than as **date**. Let's correct those issues
+
+
+```{r}
+colnames(movies)[1]<-'Release.Date'
+movies$Release.Date<-mdy(movies$Release.Date)
+str(movies)
+```
+
+Now that we have corrected the issue with the Release.Date column, let's have a look to the head and tail of our dataset
+
+```{r}
+
+head(movies)
+```
+```{r}
+tail(movies)
+```
+
+We are going to use the *skim_without_charts()* function from the **skmir** package to look for missing values and to have a notion of the data from the data set
+
+```{r}
+skim_without_charts(movies)
+```
+
+Thanks to the **skimr** package we can observe that there are **21** movies which Release.Date is empty as well as there are films which Release Date is over 2021, which is impossible (Release.Date max value = 2070-09-23). The later could be some kind of typo between the digits within the year e.g: 20**7**0 instead of 200**7**, however as we are not sure if that is the problem, we are going to exclude films with Release.Date after 2019-12-12, as well as remove the *NA* values.
+
+```{r}
+movies <-subset(movies, Release.Date<'2019-12-12' & !is.na(Release.Date) )
+#skim_without_charts(movies)  
+skim_without_charts(movies)
+```
+
+Once corrected the issues with the Release.Date we can also observe that there are entries which have **0** as Domestic.Gross and/or Worldwide.Gross value. As the movies might not have been produced in the United States of America or might not had significant revenues outside of it, we can not discard the entries with Domestic.Gross or Worldwide.Gross equal to **0**. However, we are going to discard entries in which **both** are equal to **0**. Despite it might be due to films that were produced but never actually got revenues, we are not going to take then into account because we do not know the real reason behind it. 
+```{r}
+movies <-subset(movies, Domestic.Gross != 0 & Worldwide.Gross !=0 )
+skim_without_charts(movies)       
+```
+
+## Analysis 
+
+### Evolution over time of the **Return on Investment** in the Cinema Indutry
+
+As we comment before we have to calculate the **Return on Investment** or **ROI** for the Domestic Gross Revenue and the Worldwide Gross Revenue.
+
+For that we are going to use the function *mutate()*
+```{r}
+movies_ROI<-
+        mutate(movies,
+                ROI.Domestic = ((Domestic.Gross-Production.Budget)/Production.Budget),
+                ROI.Worldwide = ((Worldwide.Gross - Production.Budget)/Production.Budget)
+        )
+head(movies_ROI)
+```
+
+#### Evloution of the Return on Investement for the Domestic Gross Revenue over time
+
+Some basic stats of the **Domestic ROI Distribution**
+
+```{r}
+movies_ROI %>% 
+        summarise( min(ROI.Domestic), mean(ROI.Domestic), max(ROI.Domestic), sd(ROI.Domestic))
+
+```
+
+Here you can see the top films with Domestic Gross Revenue **ROI** values over 40 
+```{r}
+movies_ROI %>% 
+        select(Movie.Title, ROI.Domestic) %>% 
+        subset(ROI.Domestic >40)
+```
+
+```{r}
+ggplot(movies_ROI)+
+        geom_point(mapping = aes(x = Release.Date, y = ROI.Domestic, color = ROI.Domestic))+
+        labs(x =  'Release Date', y = 'ROI', title = 'Domestic ROI vs Time')+
+        scale_color_viridis(option = "E")
+        
+```
+
+We have a quite interesting plot.
+
+What we can conclude out of this representation is that from the 70's to the 90's the top films by Production Budget had a more disperse range of **ROI** values that the films from the 2000's to 2020's.
+
+However, is important to take into account that this list has been made based on the Production Budget, and therefore, films with less Budget might have better **ROI**. 
+
+For example, the film *The Witch of Blair* had a Production Budget of 300K USD and Domestic Gross Revenue of 140.5M USD, therefore the ROI for this films is around **466**, far over the top film of our list.
+
+* Source: [Web Archive (Box Office Mojo)](https://web.archive.org/web/20130424120116/https://boxofficemojo.com/movies/?id=blairwitchproject.htm)
+
+
+#### Evloution of the Return on Investement for the Worldwide Gross Revenue over time
+
+Some basic stats of the **Worldwide ROI Distribution**
+
+```{r}
+movies_ROI %>% 
+        summarise( min(ROI.Worldwide), mean(ROI.Worldwide), max(ROI.Worldwide), sd(ROI.Worldwide))
+
+```
+
+```{r}
+movies_ROI %>% 
+        select(Movie.Title, ROI.Worldwide) %>% 
+        subset(ROI.Worldwide >40)
+```
+
+```{r}
+ggplot(movies_ROI)+
+        geom_point(mapping = aes(x = Release.Date, y = ROI.Worldwide, color = ROI.Worldwide))+
+        labs(x =  'Release Date', y = 'ROI', title = 'Worldwide ROI vs Time')+
+        scale_color_viridis(option = "E")
+```
+
+As in the previous case, the 70's to the 90's the top films by Production Budget had a more disperse range of **ROI** values that the films from the 2000's to 2020's.
+
+In many cases the **ROI** values are bigger, as expected due to the increase in the total Revenue. 
+
+Another aspect that we need to consider is that as this list does not take into account inflation rate, for the older movie it is highly probable that we have an over representation of high Production Budget Movies in that range ( 70-90's).
+
+#### Is the Domestic Gross Revenue a potential indicator or the Worldwide Gross Revenue?
+
+To study this we are going to represent the quotient between the Worldwide.Gross and  Domestic.Gross vs time
+
+```{r}
+ggplot(movies_ROI)+
+        geom_point(mapping = aes(x = Release.Date, y = Worldwide.Gross/Domestic.Gross))
+```
+
+At first glance, we can think that we have a very low dispersity of our resultS, with just a few examples where the Worldwide.Gross does not correlate with the Domestic.Gross.
+Actually what we have is just a few outliers were the ratio is greater than 25.
+
+```{r}
+movies_outliers <- movies %>% 
+        mutate(D_W = (Worldwide.Gross/Domestic.Gross)) %>% 
+        subset(D_W > 25)
+ggplot()+
+        geom_point(data = movies_ROI, mapping = aes(x = Release.Date, y = Worldwide.Gross/Domestic.Gross))+
+        geom_point(data = movies_outliers, mapping = aes(x = Release.Date, y = D_W, color=''))+
+        labs(color='Outliers')
+
+```
+Those are films that made much more profit Worldwide than Domestically (up to 15 000 times)
+
+This is the list of Movies with over 25 more Worlwide Gross Revenue than Domestic Gross Revenue
+
+```{r}
+movies_outliers %>% 
+        select(Movie.Title, D_W) %>% 
+        arrange(desc(D_W))
+```
+
+If we leave those outliers out by a moment we get a very different plot.
+
+```{r}
+movies %>% 
+        mutate(D_W = (Worldwide.Gross/Domestic.Gross)) %>% 
+        subset(D_W <= 15) %>% 
+        ggplot()+
+                geom_point(mapping = aes(x = Release.Date, y = D_W, color = D_W))+
+                geom_smooth(method = "lm", mapping = aes(x = Release.Date, y = D_W))+
+                scale_color_viridis(option = "D")+
+                ylim(0,15)
+                
+```
+ 
+**It seems that the Domestic Gross Revenue is not a good indicator of the Worldwide performance of a film**
+
+What we can do conclude is that the Worldwide Gross Revenue has become a major component over the Domestic Gross Revenue for High Budget films.
